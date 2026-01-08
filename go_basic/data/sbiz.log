@@ -1,0 +1,9 @@
+{"time":"2026-01-02 20:36:27.822","level":"INFO","source":{"function":"github.com/chenyang-zz/go-learn/basic/io.SLog","file":"/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go","line":74},"msg":"加法运算","a":3,"b":4,"sum":7}
+{"time":"2026-01-02 20:36:27.823","level":"ERROR","source":{"function":"github.com/chenyang-zz/go-learn/basic/io.SLog","file":"/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go","line":75},"msg":"Hello 大乔乔"}
+{"time":"2026-01-02 20:36:27.823","level":"INFO","source":{"function":"github.com/chenyang-zz/go-learn/basic/io.SLog","file":"/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go","line":79},"msg":"welcome"}
+time="2026-01-02 20:37:14.527" level=INFO source=/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go:74 msg=加法运算 a=3 b=4 sum=7
+time="2026-01-02 20:37:14.528" level=ERROR source=/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go:75 msg="Hello 大乔乔"
+time="2026-01-02 20:37:14.528" level=INFO source=/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go:79 msg=welcome
+{"time":"2026-01-02 20:49:11.122","level":"INFO","source":{"function":"github.com/chenyang-zz/go-learn/basic/io.SLog","file":"/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go","line":76},"msg":"加法运算","a":3,"b":4,"sum":7}
+{"time":"2026-01-02 20:49:11.123","level":"ERROR","source":{"function":"github.com/chenyang-zz/go-learn/basic/io.SLog","file":"/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go","line":77},"msg":"Hello 大乔乔"}
+{"time":"2026-01-02 20:49:11.123","level":"INFO","source":{"function":"github.com/chenyang-zz/go-learn/basic/io.SLog","file":"/Users/sheepzhao/Desktop/go/go_learn/go_basic/io/log.go","line":81},"msg":"welcome","user":"张朝阳","age":18}

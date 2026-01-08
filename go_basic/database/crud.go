@@ -1,0 +1,103 @@
+package database
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+)
+
+// insert 插入数据
+func Insert(db *sql.DB) {
+	//一条sql，插入2行记录
+	res, err := db.Exec("insert into student (name,province,city,enrollment) values ('小明','深圳','深圳','2026-1-1'), ('小红','浙江','杭州','2026-1-2')")
+	CheckError(err)
+	lastId, err := res.LastInsertId() //  ID自增，用过的id（即使对应的行已delete）不会重复使用。如果使用单个INSERT语句将多行插入到表中，则LastInsertId是第一条数据使用的id
+	CheckError(err)
+	fmt.Printf("after insert last id %d\n", lastId)
+	rows, err := res.RowsAffected() //受影响的行数 插入2行，所以影响了2行
+	CheckError(err)
+	fmt.Printf("after insert affected rows %d\n", rows)
+}
+
+// replace 插入(覆盖)数据
+func Replace(db *sql.DB) {
+	// 由于name字段上有唯一索引，insert重复的name会报错。而使用replace会先删除，再插入
+	res, err := db.Exec("replace into student (name,province,city,enrollment) values ('小明','深圳','深圳','2026-1-3'), ('小红','浙江','杭州','2026-1-4')")
+	CheckError(err)
+	lastId, err := res.LastInsertId()
+	CheckError(err)
+	fmt.Printf("after replace last id %d\n", lastId)
+	rows, err := res.RowsAffected() // 先删除，后插入，影响了4行
+	CheckError(err)
+	fmt.Printf("after replace affected rows %d\n", rows)
+}
+
+// update 修改数据
+func Update(db *sql.DB) {
+	//不同的city加不同的分数
+	res, err := db.Exec("update student set score=score+10 where city='杭州'")
+	CheckError(err)
+	lastId, err := res.LastInsertId() //0, 仅插入操作才会给LastInsertId赋值
+	CheckError(err)
+	fmt.Printf("after update last id %d\n", lastId)
+	rows, err := res.RowsAffected() //where city=?命中了几行，就会影响几行
+	CheckError(err)
+	fmt.Printf("after update affected rows %d\n", rows)
+}
+
+// delete 删除数据
+func Delete(db *sql.DB) {
+	res, err := db.Exec("delete from student where id=3")
+	CheckError(err)
+	lastId, err := res.LastInsertId() //0, 仅插入操作才会给LastInsertId赋值
+	CheckError(err)
+	fmt.Printf("after delete last id %d\n", lastId)
+	rows, err := res.RowsAffected()
+	CheckError(err)
+	fmt.Printf("after delete affected rows %d\n", rows)
+}
+
+type User struct {
+	Id     int
+	Gender string
+	Score  float64
+}
+
+// query 查询数据
+func Query(db *sql.DB) map[int]*User {
+	rows, err := db.Query("select id,name,city,score,enrollment from student where enrollment>=20250101 limit 5")
+	CheckError(err)
+	defer rows.Close()
+	rect := make(map[int]*User, 10)
+
+	for rows.Next() {
+		var id int
+		var score float32
+		var name, city string
+		var enrollment time.Time
+		err := rows.Scan(&id, &name, &city, &score, &enrollment)
+		CheckError(err)
+		fmt.Printf("id=%d, score=%.2f, name=%s, city=%s, enrollment=%s \n", id, score, name, city, enrollment.Format("2006-01-02"))
+		rect[id] = &User{
+			Id:    id,
+			Score: float64(score),
+		}
+	}
+	return rect
+}
+
+// 事务
+func Transaction(db *sql.DB) {
+	tx, err := db.BeginTx(context.Background(), nil)
+	CheckError(err)
+	_, err = tx.Exec("insert into student (name,province,city,enrollment,score) values ('Tom', '深圳', '深圳', '2022-07-03',40)")
+	CheckError(err)
+	_, err = tx.Exec("insert into student (name,province,city,enrollment,score) values ('Tom', '深圳', '深圳', '2022-07-03',40)") // 一旦中间某一步出错失败，则事务里的所有操作全部回滚
+	CheckError(err)
+
+	err = tx.Commit()
+	CheckError(err)
+}
