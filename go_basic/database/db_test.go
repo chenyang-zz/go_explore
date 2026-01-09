@@ -2,6 +2,7 @@ package database_test
 
 import (
 	"database/sql"
+	"fmt"
 	"testing"
 
 	"github.com/chenyang-zz/go-learn/basic/database"
@@ -50,4 +51,23 @@ func TestSelect(t *testing.T) {
 
 func TestTransaction(t *testing.T) {
 	database.Transaction(db)
+}
+
+func TestSqlBuilder(t *testing.T) {
+	database.SqlInsert()
+	database.SqlDelete()
+	database.SqlRead()
+	database.SqlUpdate()
+}
+
+func TestMassInsert(t *testing.T) {
+	database.MassInsertStmt(db)
+}
+
+func TestQueryByPage(t *testing.T) {
+	total, data := database.QueryByPage(db, 10, 2)
+	fmt.Println(total)
+	for _, user := range data {
+		fmt.Println(user.Id, user.Score)
+	}
 }

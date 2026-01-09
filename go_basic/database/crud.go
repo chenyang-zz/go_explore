@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	rand "math/rand/v2"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	gsb "github.com/huandu/go-sqlbuilder"
 )
 
 // insert 插入数据
@@ -89,6 +91,27 @@ func Query(db *sql.DB) map[int]*User {
 	return rect
 }
 
+func QueryUser(db *sql.DB, mp map[int]*User) {
+	rows, err := db.Query("select id,gender from user")
+	CheckError(err)
+	defer rows.Close()
+	for rows.Next() { //没有数据或发生error时返回false
+		var id int
+		var gender string
+		err := rows.Scan(&id, &gender) //通过scan把db里的数据赋给go变量
+		CheckError(err)
+		user, ok := mp[id]
+		if ok {
+			user.Gender = gender
+		} else {
+			mp[id] = &User{
+				Id:     id,
+				Gender: gender,
+			}
+		}
+	}
+}
+
 // 事务
 func Transaction(db *sql.DB) {
 	tx, err := db.BeginTx(context.Background(), nil)
@@ -100,4 +123,51 @@ func Transaction(db *sql.DB) {
 
 	err = tx.Commit()
 	CheckError(err)
+}
+
+// 插入大量记录
+func MassInsertStmt(db *sql.DB) {
+	insertBuilder := gsb.NewInsertBuilder()
+	insertBuilder = insertBuilder.InsertInto("student").Cols("name", "province", "city", "enrollment", "score").Values(RandStringRunes(10), "河南", "郑州", time.Now().Add(time.Hour*24*time.Duration(1)).Format("2006-01-02"), rand.IntN(100))
+	sql, args := insertBuilder.Build()
+	stmt, err := db.Prepare(sql)
+	CheckError(err)
+	stmt.Exec(args...)
+	for i := range 100 {
+		stmt.Exec(RandStringRunes(10), "河南", "郑州", time.Now().Add(time.Hour*24*time.Duration(i)).Format("2006-01-02"), rand.IntN(100)) //重复利用stmt
+	}
+	stmt.Close()
+
+	sb := gsb.NewInsertBuilder()
+	sb = sb.InsertInto("student").Cols("name", "province", "city", "enrollment", "score")
+	for i := range 100 {
+		sb = sb.Values(RandStringRunes(10), "河南", "郑州", time.Now().Add(time.Hour*24*time.Duration(i)).Format("2006-01-02"), rand.IntN(100))
+	}
+	sql, args = sb.Build()
+	stmt2, err := db.Prepare(sql)
+	CheckError(err)
+	stmt2.Exec(args...)
+	stmt2.Close()
+}
+
+func QueryByPage(db *sql.DB, pageSize, page int) (total int, data []*User) {
+	// 先获得总数
+	rows, err := db.Query("select count(*) from student")
+	CheckError(err)
+	defer rows.Close()
+	rows.Next() //一定要先执行Next()
+	rows.Scan(&total)
+
+	// 再通过select limit 获得相应分页里的数据
+	offset := (page - 1) * pageSize
+	rows2, err := db.Query(fmt.Sprintf("select id,score from student limit %d,%d", offset, pageSize))
+	CheckError(err)
+	defer rows2.Close()
+	for rows2.Next() {
+		var id int
+		var score float64
+		rows2.Scan(&id, &score)
+		data = append(data, &User{Id: id, Score: score})
+	}
+	return
 }
