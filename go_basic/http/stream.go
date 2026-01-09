@@ -1,8 +1,15 @@
 package http
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
+	"io"
+	"log"
 	"net/http"
+	"os"
 	"text/template"
 	"time"
 )
@@ -50,6 +57,91 @@ func SSE(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 }
 
+func ImageStream(w http.ResponseWriter, r *http.Request) {
+	fileName := r.PathValue("file_name")
+	file, err := os.Open("./data/" + fileName)
+	if err != nil {
+		http.Error(w, "文件找不到", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+
+	img, formatName, err := image.Decode(file)
+	if err != nil {
+		http.Error(w, "图像解码失败", http.StatusInternalServerError)
+		return
+	}
+
+	width := img.Bounds().Max.X
+	height := img.Bounds().Max.Y
+	rgba := image.NewRGBA(img.Bounds())
+	for i := range width {
+		for j := 0; j < height; j++ {
+			rgba.Set(i, j, img.At(i, j))
+		}
+	}
+
+	const boundary = "--myboundary"
+	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary="+boundary) // 用于发送图片或视频
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	const P = 10
+	step := height/P + 1 // 加1是为了防止step等于0
+	for i := 0; ; i++ {
+		top := i * step
+		buttom := min((i+1)*step, height)
+
+		segment, err := getImgSegment(rgba, formatName, top, buttom, width)
+		if err != nil {
+			log.Printf("GetImgSegment error: %s", err)
+			break
+		}
+
+		fmt.Fprintf(w, "\r\n%s\r\n", boundary)
+		fmt.Fprintf(w, "Content-Type: image/%s\r\n", formatName)
+		fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", len(segment)) // 每一份数据有单独的header
+		w.Write(segment)                                           // 每一份数据可以单独解码
+		flusher.Flush()
+
+		if buttom >= height {
+			break
+		}
+
+		time.Sleep(time.Second)
+	}
+}
+
+func Animation(w http.ResponseWriter, r *http.Request) {
+	const boundary = "--myboundary"
+	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary="+boundary) // 用于发送图片或视频
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	images := []string{"prepare.png", "go.png", "run.png"}
+	for _, image := range images {
+		segment, err := readImage(image)
+		if err != nil {
+			http.Error(w, "read imgae error", http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "\r\n%s\r\n", boundary)        // 分界线
+		fmt.Fprintf(w, "Content-Type: image/png\r\n") // 每一份数据有单独的header
+		fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", len(segment))
+
+		w.Write(segment)
+		flusher.Flush()
+		time.Sleep(time.Second)
+	}
+}
+
 func StartHttpServerStream() {
 	// 路由
 	http.HandleFunc("/chunk", ChunkedTransfer)
@@ -62,9 +154,51 @@ func StartHttpServerStream() {
 		}
 		tmpl.Execute(w, map[string]string{"url": "https://5678-firebase-goexplore-1767890864420.cluster-qxqlf3vb3nbf2r42l5qfoebdry.cloudworkstations.dev/server_source_event"})
 	})
+	http.HandleFunc("/img/{file_name}", ImageStream)
+	http.HandleFunc("/animation", Animation)
 
 	// 启动Http Server
 	if err := http.ListenAndServe("127.0.0.1:5678", nil); err != nil {
 		panic(err)
 	}
+}
+
+func getImgSegment(img image.Image, formatName string, top, buttom, width int) ([]byte, error) {
+	//subImg := image.NewRGBA(img.Bounds())   // 各部分保持在原图像中的位置
+	subImg := image.NewRGBA(image.Rect(0, 0, width, buttom-top))
+	for i := 0; i < width; i++ {
+		for j := top; j < buttom; j++ {
+			//subImg.Set(i, j, img.At(i, j))   // 各部分保持在原图像中的位置
+			subImg.Set(i, j-top, img.At(i, j))
+		}
+	}
+
+	bs := make([]byte, 0, 2048) // 即使subImg超过了2K，bytes.Buffer也会自动扩容的
+	buffer := bytes.NewBuffer(bs)
+	if formatName == "png" {
+		err := png.Encode(buffer, subImg) // 把subImg进行png编码，然后写入buffer
+		if err != nil {
+			return nil, err
+		}
+	} else if formatName == "jpeg" {
+		err := jpeg.Encode(buffer, subImg, &jpeg.Options{Quality: 100})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return buffer.Bytes(), nil
+}
+
+func readImage(fileName string) ([]byte, error) {
+	file, err := os.Open("./data/" + fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	buffer := bytes.NewBuffer(make([]byte, 0, 1024))
+	_, err = io.Copy(buffer, file)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
